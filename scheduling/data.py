@@ -1,5 +1,6 @@
 class Student:
     id = 0
+    
     def __init__(self, name):
         Student.id += 1
         self.student_id = Student.id
@@ -14,9 +15,10 @@ class Student:
         print()
 
 class Class:
-    amount_of_subjects = 0
+    count = 0
+    # class_list = []
     def __init__(self, teacher, students):
-        Class.amount_of_subjects += 1
+        Class.count += 1
         
         self.subject_name = teacher.subject_name
         self.students = students
@@ -29,8 +31,12 @@ class Class:
         else:
             print("Too much students cringe bruh")
 
+        # Class.class_list.append(self)
+
 class Teacher:
+    count = 0
     def __init__(self, name, subject_name):
+        Teacher.count += 1
         self.classroom_size = 5
         self.name = name
         self.subject_name = subject_name

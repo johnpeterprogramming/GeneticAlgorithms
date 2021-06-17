@@ -23,6 +23,8 @@ class Schedule:
         for i in range(self.teacher_count):
             if schedule[day_indx-1][period_indx-1][i] == None:
                 schedule[day_indx-1][period_indx-1][i] = key
+                key.added_to_shedule(day_indx)
+
                 return schedule
 
     def print_schedule(self, schedule, teacher=None, student=None):
@@ -54,10 +56,40 @@ class GeneticAlgorithm(Schedule):
                         key = random.choice(self.all_keys)
                         self.add_class(schedule, key, day, period)
                 
-            print("Index: ", i)
-            self.print_schedule(schedule)
+            # print("Population ", i)
+            # self.print_schedule(schedule)
         population.append(schedule)
         return population
+
+    def cal_fitness(self, schedule):
+        
+        #Periods of same subject should be double periods
+        #Distance between classes should be minimal
+        #Important subjects like maths and science should be in the first 4 periods of the day
+
+        fitness_score = np.zeros((5)) 
+
+        #Kry die collision count
+        collision_count = 0
+        for day in range(self.days): 
+            for period in range(self.period_count):
+                collision_set = set(schedule[day][period])
+                # line = ""
+                # for i in collision_set:
+                #     line += f"{i.subject_name}-{i.teacher.name}; "
+                # print(line) Om die collision set uit te print
+                collision_count += len(schedule[day][period]) - len(collision_set)
+
+        print("Collision count: ", collision_count)
+        fitness_score[0] = 1/collision_count
+
+        #No more than 2 periods of same subject per day
+        for key in self.all_keys:
+            print(key.teacher.name)
+            print(key.days_count)
+            print()
+
+        return fitness_score
 
 
 if True:
@@ -89,4 +121,6 @@ if True:
     all_keys = [eng_key1, eng_key2, afr_key1, afr_key2, igo_key1, igo_key2, wisk_key1, wisk_key2, it_key1]
 
 
-    ga = GeneticAlgorithm(pop_size=1, generation_length=5, all_keys=all_keys, amount_of_classes_per_day=2, amount_of_days_per_cicle=2)
+    ga = GeneticAlgorithm(pop_size=2, generation_length=5, all_keys=all_keys, amount_of_classes_per_day=2, amount_of_days_per_cicle=2)
+    ga.print_schedule(ga.population[0])
+    print(ga.cal_fitness(ga.population[0]))

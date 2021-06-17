@@ -1,5 +1,3 @@
-from numpy.core.fromnumeric import shape
-from numpy.core.multiarray import empty_like
 from data import Class, Student, Teacher
 import numpy as np
 import random
@@ -7,13 +5,13 @@ import random
 
 class Schedule:
     def __init__(self, amount_of_classes_per_day, amount_of_days_per_cicle):
-        self.classes = amount_of_classes_per_day
+        self.period_count = amount_of_classes_per_day
         self.days = amount_of_days_per_cicle
-        self.subjects = 9
+        self.teacher_count = Teacher.count
         self.schedule = self.empty_schedule()
 
     def empty_schedule(self):
-        return np.empty((self.days, self.classes, self.subjects), dtype=object)
+        return np.empty((self.days, self.period_count, self.teacher_count), dtype=object)
 
     def can_add(self, schedule, key, day_indx, period_indx):
         if key in schedule[day_indx-1][period_indx-1]:
@@ -22,19 +20,21 @@ class Schedule:
         return True
 
     def add_class(self, schedule, key, day_indx, period_indx):
-        for i in range(self.subjects):
+        for i in range(self.teacher_count):
             if schedule[day_indx-1][period_indx-1][i] == None:
                 schedule[day_indx-1][period_indx-1][i] = key
+                key.added_to_shedule(day_indx)
+
                 return schedule
 
     def print_schedule(self, schedule, teacher=None, student=None):
         for day in range(self.days):
             print("Day: ", day+1)
-            for period in range(self.classes):
+            for period in range(self.period_count):
                 line = f"     Periode {period+1}: "
                 for i in schedule[day][period]:
                     if i != None:
-                        line += str(i.subject_name) + " "
+                        line += f"{i.subject_name}-{i.teacher.name}, "
                 print(line)
             
 
@@ -50,22 +50,47 @@ class GeneticAlgorithm(Schedule):
         population = []
         for i in range(1, self.pop_size+1):
             schedule = self.empty_schedule()
-            for key in self.all_keys:
-                can_add = False
-                while not can_add:
-                    rand_day = random.randint(0, self.days-1)
-                    rand_class = random.randint(0, self.classes-1)
-                    can_add = self.can_add(schedule, key, rand_day, rand_class)
-                schedule = self.add_class(schedule, key, rand_day, rand_class)
-            print("Index: ", i)
-            self.print_schedule(schedule)
+            for day in range(self.days):
+                for period in range(self.period_count):
+                    for _ in range(self.teacher_count):
+                        key = random.choice(self.all_keys)
+                        self.add_class(schedule, key, day, period)
+                
+            # print("Population ", i)
+            # self.print_schedule(schedule)
         population.append(schedule)
         return population
 
-    def calculate_fitness(self, schedule):
-        fitness = 0
-        # As daar meer as twee van dieselfde periodes in 'n dag is, is die fitness -= 1
-        # As die vak meer of minder voor kom in die dag as wat die min en max is fitness -= 1
+    def cal_fitness(self, schedule):
+        
+        #Periods of same subject should be double periods
+        #Distance between classes should be minimal
+        #Important subjects like maths and science should be in the first 4 periods of the day
+
+        fitness_score = np.zeros((5)) 
+
+        #Kry die collision count
+        collision_count = 0
+        for day in range(self.days): 
+            for period in range(self.period_count):
+                collision_set = set(schedule[day][period])
+                # line = ""
+                # for i in collision_set:
+                #     line += f"{i.subject_name}-{i.teacher.name}; "
+                # print(line) Om die collision set uit te print
+                collision_count += len(schedule[day][period]) - len(collision_set)
+
+        print("Collision count: ", collision_count)
+        fitness_score[0] = 1/collision_count
+
+        #No more than 2 periods of same subject per day
+        for key in self.all_keys:
+            print(key.teacher.name)
+            print(key.days_count)
+            print()
+
+        return fitness_score
+
 
         
         return fitness
@@ -77,10 +102,10 @@ if __name__ == "__main__":
     scholly = Teacher("Scholly", "igo")
     hellerle = Teacher("Hellerle", "wisk")
     kalli = Teacher("Kalli", "it")
-    herman = Teacher("Meneer Herman", "wetenskap")
-    elsa = Teacher("Elsa van Zyl", "wisk")
+    herman = Teacher("Herman", "wetenskap")
+    elsa = Teacher("Elsa", "wisk")
     hellerle = Teacher("Hellerle", "wisk")
-    karinna = Teacher("Juf Gert", "afr")
+    karinna = Teacher("JGert", "afr")
 
     johna = Student("John-Peter Krause")
     reagan = Student("Reagan Botha")
@@ -101,4 +126,6 @@ if __name__ == "__main__":
     all_keys = [eng_key1, eng_key2, afr_key1, afr_key2, igo_key1, igo_key2, wisk_key1, wisk_key2, it_key1]
 
 
-    ga = GeneticAlgorithm(pop_size=5, generation_length=5, all_keys=all_keys, amount_of_classes_per_day=2, amount_of_days_per_cicle=2)
+    ga = GeneticAlgorithm(pop_size=2, generation_length=5, all_keys=all_keys, amount_of_classes_per_day=2, amount_of_days_per_cicle=2)
+    ga.print_schedule(ga.population[0])
+    print(ga.cal_fitness(ga.population[0]))

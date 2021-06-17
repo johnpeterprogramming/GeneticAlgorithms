@@ -1,5 +1,6 @@
 class Student:
     id = 0
+    
     def __init__(self, name):
         Student.id += 1
         self.student_id = Student.id
@@ -14,23 +15,38 @@ class Student:
         print()
 
 class Class:
-    amount_of_subjects = 0
+    count = 0
+    # class_list = []
     def __init__(self, teacher, students):
-        Class.amount_of_subjects += 1
+        Class.count += 1
         
         self.subject_name = teacher.subject_name
         self.students = students
         self.teacher = teacher
+        self.days_count = {}
 
-        for student in self.students:
-            student.classes.append(self)
-        if len(self.teacher.classes) < self.teacher.classroom_size:
-            self.teacher.classes.append(self)
+        # for student in self.students: FOR LATER   
+        #     student.classes.append(self)
+        # if len(self.teacher.classes) < self.teacher.classroom_size:
+        #     self.teacher.classes.append(self)
+        # else:
+        #     print("Too much students cringe bruh")
+
+        # Class.class_list.append(self)
+
+    def added_to_shedule(self, day):
+        if self.days_count.get(day):
+            self.days_count[day] += 1
         else:
-            print("Too much students cringe bruh")
+            self.days_count[day] = 1
+
+    def get_day_count(self, day):
+        pass
 
 class Teacher:
+    count = 0
     def __init__(self, name, subject_name):
+        Teacher.count += 1
         self.classroom_size = 5
         self.name = name
         self.subject_name = subject_name

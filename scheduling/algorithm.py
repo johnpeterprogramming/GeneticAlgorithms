@@ -62,8 +62,17 @@ class GeneticAlgorithm(Schedule):
         population.append(schedule)
         return population
 
+    def calculate_fitness(self, schedule):
+        fitness = 0
+        # As daar meer as twee van dieselfde periodes in 'n dag is, is die fitness -= 1
+        # As die vak meer of minder voor kom in die dag as wat die min en max is fitness -= 1
 
-if True:
+        
+        return fitness
+        
+
+
+if __name__ == "__main__":
     talita = Teacher("Talita", "eng")
     scholly = Teacher("Scholly", "igo")
     hellerle = Teacher("Hellerle", "wisk")

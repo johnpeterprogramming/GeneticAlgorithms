@@ -1,5 +1,10 @@
 import numpy as np
 import random
+import time
+import copy
+
+from numpy.core.fromnumeric import sort
+
 
 class Student:
     id = 0
@@ -38,70 +43,71 @@ class Teacher:
         self.classes = list()
 
 class Schedule:
-    def __init__(self, amount_of_classes_per_day, amount_of_days_per_cicle):
-        self.period_count = amount_of_classes_per_day
-        self.days = amount_of_days_per_cicle
+    def __init__(self, classes_per_day, days_per_cicle):
+        self.classes_per_day = classes_per_day
+        self.days_per_cicle = days_per_cicle
         self.teacher_count = Teacher.count
         self.schedule = self.empty_schedule()
 
+
     def empty_schedule(self):
-        return np.empty((self.days, self.period_count, self.teacher_count), dtype=object)
+        return np.empty((self.days_per_cicle, self.classes_per_day, self.teacher_count), dtype=object)
 
-    def add_class(self, schedule, key, day_indx, period_indx):
+    def add_class(self, key, day_indx, period_indx):
         for i in range(self.teacher_count):
-            if schedule[day_indx-1][period_indx-1][i] == None:
-                schedule[day_indx-1][period_indx-1][i] = key
-                return schedule
+            if self.schedule[day_indx-1][period_indx-1][i] == None:
+                self.schedule[day_indx-1][period_indx-1][i] = key
+                break
 
-    def print_schedule(self, schedule, teacher=None, student=None): #Add feature to print schedule for specific student or teacher
-        for day in range(self.days):
+    def print_schedule(self, teacher=None, student=None): #Add feature to print schedule for specific student or teacher
+        for day in range(self.days_per_cicle):
             print("Day: ", day+1)
-            for period in range(self.period_count):
+            for period in range(self.classes_per_day):
                 line = f"     Periode {period+1}: "
-                for i in schedule[day][period]:
+                for i in self.schedule[day][period]:
                     if i != None:
                         line += f"{i.subject_name}{i.key}-{i.teacher.name}, "
                 print(line)
 
-    def get_class_count_of_day(self, schedule, key, day_indx):
+    def get_class_count_of_day(self, key, day_indx):
         count = 0
-        for period in schedule[day_indx]:
+        for period in self.schedule[day_indx]:
             count += np.count_nonzero(period == key)
         return count
 
-class GeneticAlgorithm(Schedule):
-    def __init__(self, pop_size, generation_length, all_keys, amount_of_classes_per_day, amount_of_days_per_cicle):
-        Schedule.__init__(self, amount_of_classes_per_day, amount_of_days_per_cicle)
+class GeneticAlgorithm:
+    def __init__(self, pop_size, max_gen_length, all_keys, classes_per_day, days_per_cicle):
+        self.days_per_cicle = days_per_cicle
+        self.classes_per_day = classes_per_day
         self.pop_size = pop_size
-        self.generation_length = generation_length
+        self.max_gen_length = max_gen_length
         self.all_keys = all_keys
         self.population = self.initial_population()
-        
+
     def initial_population(self):
         population = []
-        insert_chance = 0.8 #ek dink dit moet af hang van die vak??
-        for _ in range(1, self.pop_size+1):
-            schedule = self.empty_schedule()
-            for day in range(self.days):
-                for period in range(self.period_count):
-                    for _ in range(self.teacher_count):
+        insert_chance = .8
+        for _ in range(self.pop_size):
+            schedule = Schedule(self.classes_per_day, self.days_per_cicle)
+            for day in range(self.days_per_cicle):
+                for period in range(self.classes_per_day):
+                    for _ in range(Teacher.count):
                         rand = random.random()
                         if rand < insert_chance:
                             key = random.choice(self.all_keys)
-                            schedule = self.add_class(schedule, key, day, period)
+                            schedule.add_class(key, day, period)
 
-        population.append(schedule)
+            population.append(schedule)
         return population
 
-    def cal_fitness(self, schedule):
+    def cal_fitness(self, schedule): #Takes in ARRAY not object
         #Periods of same subject should be double periods
-        #Distance between classes should be minimal
         #Important subjects like maths and science should be in the first 4 periods of the day 
 
         #Kry die collision count
         collision_count = 0
-        for day in range(self.days): 
-            for period in range(self.period_count):
+        for day in range(self.days_per_cicle): 
+            for period in range(self.classes_per_day):
                 collision_set = set(schedule[day][period])
                 if None in collision_set:
                     collision_set.remove(None)
@@ -116,21 +122,65 @@ class GeneticAlgorithm(Schedule):
                         period_length += 1
                 collision_count += period_length - len(collision_set)
 
-        print("Collision count: ", collision_count)
         if collision_count != 0:
             collision_fitness = 1/collision_count
         else:
             collision_fitness = 69 #high number
 
-        #No more than 2 periods of same subject per day
-        for key in self.all_keys:
-            count = 0
-            for day in range(self.days):
-                count += self.get_class_count_of_day(schedule, key, day)
-            print(f"{key.teacher.name}{key.key}: {count}")
+        return collision_fitness
 
+    def rank_by_fitness(self):
+        fitnesses = []
+        for sched in self.population:
+            fitnesses.append(self.cal_fitness(sched.schedule))
 
-        return collision_fitness,
+        zipped_pop = [i for i in reversed(sorted(zip(fitnesses, range(len(self.population)))))]
+        for i in range(len(self.population)):
+            self.population[zipped_pop[i][1]] = self.population[i]
+
+    def crossover(self, parent1, parent2): #Takes in OBJECT not array
+        #verander die twee parents
+        crossover_point = Teacher.count // 2
+        buffer_parent = copy.deepcopy(parent1)
+        for day in range(self.days_per_cicle):
+            for period in range(self.classes_per_day):
+                parent1.schedule[day][period][:crossover_point] = parent2.schedule[day][period][:crossover_point]
+                parent2.schedule[day][period][:crossover_point] = buffer_parent.schedule[day][period][:crossover_point]
+
+    def mutation(self, mutant): #Takes in OBJECT
+        mutation_rate = 0.1
+        for day in range(self.days_per_cicle):
+            for period in range(self.classes_per_day):
+                if random.random() < mutation_rate:
+                    i1 = random.randint(0, Teacher.count-1)
+                    i2 = random.randint(0, Teacher.count-1)
+                    while i2 == i1:
+                        i2 = random.randint(0, Teacher.count-1)
+
+                    temp = copy.deepcopy(mutant.schedule[day][period][i1])
+                    mutant.schedule[day][period][i1] = mutant.schedule[day][period][i2]
+                    mutant.schedule[day][period][i2] = temp
+
+    def start(self):
+        for gen in range(self.max_gen_length):
+            self.rank_by_fitness()
+            best_fitness = self.cal_fitness(self.population[0].schedule)
+            print(f"Best fitness at generation {gen}: {best_fitness}")
+            if best_fitness > 1:
+                print("Breaking, fitness higher than 1!")
+                break
+
+            for i in range(self.pop_size//2):
+                # par1 = self.population[i]
+                # par2 = self.population[i+1]
+                self.crossover(self.population[i], self.population[i+1])
+            for mutant in self.population:
+                self.mutation(mutant)
+
+        self.rank_by_fitness()        
+        self.population[0].print_schedule()
+            
+                
 
 
 #initialize data from database
@@ -161,10 +211,6 @@ if True:
     it_key1 = Class(kalli, [johna, reagan, johan, bruh, beans], 1)
     all_keys = [eng_key1, eng_key2, afr_key1, afr_key2, igo_key1, igo_key2, wisk_key1, wisk_key2, it_key1]
 
-ga = GeneticAlgorithm(pop_size=1, generation_length=1, all_keys=all_keys, amount_of_classes_per_day=2, amount_of_days_per_cicle=2)
+ga = GeneticAlgorithm(pop_size=20, max_gen_length=100, all_keys=all_keys, classes_per_day=9, days_per_cicle=5)
 
-test_pop = ga.population[0]
-ga.print_schedule(test_pop)
-print(ga.cal_fitness(test_pop))
-
-
+ga.start()

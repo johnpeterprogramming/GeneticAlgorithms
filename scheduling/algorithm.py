@@ -1,10 +1,6 @@
 import numpy as np
 import random
-import time
 import copy
-
-from numpy.core.fromnumeric import sort
-
 
 class Student:
     id = 0
@@ -27,7 +23,7 @@ class Class:
     def __init__(self, teacher, students, key):
         Class.count += 1
 
-        self.key = key #key 'n beter solution later sodat jy nie hoef te se watse key iets is nie
+        self.key = students[0].name #key 'n beter solution later sodat jy nie hoef te se watse key iets is nie
         self.subject_name = teacher.subject_name
         self.students = students
         self.teacher = teacher
@@ -49,7 +45,6 @@ class Schedule:
         self.teacher_count = Teacher.count
         self.schedule = self.empty_schedule()
 
-
     def empty_schedule(self):
         return np.empty((self.days_per_cicle, self.classes_per_day, self.teacher_count), dtype=object)
 
@@ -66,7 +61,7 @@ class Schedule:
                 line = f"     Periode {period+1}: "
                 for i in self.schedule[day][period]:
                     if i != None:
-                        line += f"{i.subject_name}{i.key}-{i.teacher.name}, "
+                        line += f"{i.subject_name}-{i.teacher.name}, "
                 print(line)
 
     def get_class_count_of_day(self, key, day_indx):
@@ -108,24 +103,28 @@ class GeneticAlgorithm:
         collision_count = 0
         for day in range(self.days_per_cicle): 
             for period in range(self.classes_per_day):
-                collision_set = set(schedule[day][period])
-                if None in collision_set:
-                    collision_set.remove(None)
+                collision_list = list()
+                for i in schedule[day][period]:
+                    if i == None:
+                        continue
+                    if i not in collision_list:
+                        collision_list.append(i.teacher.name)
+
                 # line = "" #print collision_set
-                # for i in collision_set:
-                #     line += f"{i.subject_name}{i.teacher_class_id}-{i.teacher.name}; "
+                # for i in collision_list:
+                #     line += f"{i.subject_name}-{i.name}; "
                 # print(line)
 
                 period_length = 0
                 for i in schedule[day][period]:
                     if i:
                         period_length += 1
-                collision_count += period_length - len(collision_set)
+                collision_count += (period_length - len(set(collision_list)))
 
         if collision_count != 0:
             collision_fitness = 1/collision_count
         else:
-            collision_fitness = 69 #high number
+            collision_fitness = 9999 #high number
 
         return collision_fitness
 
@@ -133,54 +132,66 @@ class GeneticAlgorithm:
         fitnesses = []
         for sched in self.population:
             fitnesses.append(self.cal_fitness(sched.schedule))
+        # print(f"Highest fitness in ranked func: {max(fitnesses)}")
 
-        zipped_pop = [i for i in reversed(sorted(zip(fitnesses, range(len(self.population)))))]
-        for i in range(len(self.population)):
-            self.population[zipped_pop[i][1]] = self.population[i]
+        zipped_pop = [i for i in reversed(sorted(zip(fitnesses, range(self.pop_size))))]
+        temp = copy.deepcopy(self.population)
+        indx = 0
+        for _,j in zipped_pop:
+            self.population[indx] = temp[j]
+            indx += 1
 
     def crossover(self, parent1, parent2): #Takes in OBJECT not array
-        #verander die twee parents
+        par1 = copy.deepcopy(parent1)
+        par2 = copy.deepcopy(parent2)
         crossover_point = Teacher.count // 2
-        buffer_parent = copy.deepcopy(parent1)
         for day in range(self.days_per_cicle):
             for period in range(self.classes_per_day):
-                parent1.schedule[day][period][:crossover_point] = parent2.schedule[day][period][:crossover_point]
-                parent2.schedule[day][period][:crossover_point] = buffer_parent.schedule[day][period][:crossover_point]
+                par1.schedule[day][period][:crossover_point] = par2.schedule[day][period][:crossover_point]
+                par2.schedule[day][period][:crossover_point] = parent1.schedule[day][period][:crossover_point]
+        return par1, par2
 
     def mutation(self, mutant): #Takes in OBJECT
-        mutation_rate = 0.1
-        for day in range(self.days_per_cicle):
-            for period in range(self.classes_per_day):
-                if random.random() < mutation_rate:
-                    i1 = random.randint(0, Teacher.count-1)
-                    i2 = random.randint(0, Teacher.count-1)
-                    while i2 == i1:
-                        i2 = random.randint(0, Teacher.count-1)
+        mutation_rate = 0.7
+        remove_rate = 0.7
+        if random.random() < mutation_rate:
+            rand_day = random.randint(0, self.days_per_cicle-1)
+            rand_class = random.randint(0, self.classes_per_day-1)
+            rand_indx = random.randint(0, Teacher.count-1)
 
-                    temp = copy.deepcopy(mutant.schedule[day][period][i1])
-                    mutant.schedule[day][period][i1] = mutant.schedule[day][period][i2]
-                    mutant.schedule[day][period][i2] = temp
+            mutant.schedule[rand_day][rand_class][rand_indx] = random.choice(self.all_keys)
+
+        if random.random() < remove_rate:
+            rand_day = random.randint(0, self.days_per_cicle-1)
+            rand_class = random.randint(0, self.classes_per_day-1)
+            rand_indx = random.randint(0, Teacher.count-1)
+            mutant.schedule[rand_day][rand_class][rand_indx] == None
+
 
     def start(self):
         for gen in range(self.max_gen_length):
-            self.rank_by_fitness()
-            best_fitness = self.cal_fitness(self.population[0].schedule)
-            print(f"Best fitness at generation {gen}: {best_fitness}")
-            if best_fitness > 1:
-                print("Breaking, fitness higher than 1!")
-                break
 
+            crossovers = list()
             for i in range(self.pop_size//2):
-                # par1 = self.population[i]
-                # par2 = self.population[i+1]
-                self.crossover(self.population[i], self.population[i+1])
-            for mutant in self.population:
+                par1, par2 = self.crossover(self.population[i], self.population[(i+1)%self.pop_size])
+                crossovers.append(par1)
+                crossovers.append(par2)
+            
+            for mutant in crossovers:
                 self.mutation(mutant)
 
-        self.rank_by_fitness()        
-        self.population[0].print_schedule()
+            self.rank_by_fitness()
+
+            best_fitness = self.cal_fitness(self.population[0].schedule)
+            print(f"Best fitness at generation {gen}: {best_fitness}")
             
+            if best_fitness > 1:
+                print("BEST FITNESS ACHIEVED!")
+                self.population[0].print_schedule()
+                break
                 
+
+            self.population[self.pop_size//2:] = crossovers[:self.pop_size//2]
 
 
 #initialize data from database
@@ -193,9 +204,9 @@ if True:
     elsa = Teacher("Elsa", "wisk")
     karinna = Teacher("JGert", "afr")
 
-    johna = Student("John-Peter Krause")
-    reagan = Student("Reagan Botha")
-    johan = Student("Johan Bruh") 
+    johna = Student("Johna")
+    reagan = Student("Reagan")
+    johan = Student("Johan") 
     bruh = Student("Bruh")
     beans = Student("Beans")
     yeet = Student("Yeet") 
@@ -211,6 +222,7 @@ if True:
     it_key1 = Class(kalli, [johna, reagan, johan, bruh, beans], 1)
     all_keys = [eng_key1, eng_key2, afr_key1, afr_key2, igo_key1, igo_key2, wisk_key1, wisk_key2, it_key1]
 
-ga = GeneticAlgorithm(pop_size=20, max_gen_length=100, all_keys=all_keys, classes_per_day=9, days_per_cicle=5)
-
+ga = GeneticAlgorithm(pop_size=30, max_gen_length=150, all_keys=all_keys, classes_per_day=2, days_per_cicle=2)
 ga.start()
+ga.rank_by_fitness()
+ga.population[0].print_schedule()
